@@ -40,7 +40,7 @@ if config.defense == "melon":
     tools_loop = ToolsExecutionLoop(
         [
             ToolsExecutor(),
-            ContrastPIDetector(
+            MELON(
                 llm,
                 threshold=0.1,
             ),
