@@ -13,10 +13,10 @@ Recent research has explored that LLM agents are vulnerable to indirect prompt i
 - [Repository contents](#repository-contents)
 - [1. Environment setup](#1-environment-setup)
 - [2. Environment variables](#2-environment-variables)
-- [3. Install MELON into AgentDojo](#3-install-melon-into-agentdojo)
-- [4. Running with hosted models (OpenAI / Anthropic / …)](#4-running-with-hosted-models)
-- [5. Running with locally-served models (Qwen3 & Llama-3.3)](#5-running-with-locally-served-models)
-- [6. Using MELON in your own project](#6-using-melon-in-your-own-project)
+- [3. Running with hosted models (OpenAI / Anthropic / …)](#3-running-with-hosted-models)
+- [4. Running with locally-served models (Qwen3 & Llama-3.3)](#4-running-with-locally-served-models)
+- [5. Using MELON in your own project](#5-using-melon-in-your-own-project)
+- [How MELON is integrated (reference)](#how-melon-is-integrated-reference)
 - [Contact](#contact)
 - [Acknowledgments](#acknowledgments)
 - [Citation](#citation)
@@ -25,21 +25,23 @@ Recent research has explored that LLM agents are vulnerable to indirect prompt i
 
 ## Repository contents
 
-| File | Description |
+| Path | Description |
 | --- | --- |
-| `pi_detector.py` | The MELON detector (`class MELON`) plus the base `PromptInjectionDetector`. Drop-in replacement for AgentDojo's `pi_detector.py`. |
+| `agentdojo/` | A checkout of [AgentDojo](https://github.com/ethz-spylab/agentdojo) **with MELON already integrated** — the `melon` defense is registered and `pi_detector.py` is in place. Install it with `pip install -e .`. |
+| `pi_detector.py` | Stand-alone copy of the MELON detector (`class MELON`) plus the base `PromptInjectionDetector`, for reuse in your own projects. Identical to `agentdojo/src/agentdojo/agent_pipeline/pi_detector.py`. |
 | `README.md` | This file. |
 
-MELON is implemented as an AgentDojo *pipeline element*. You install it by copying
-`pi_detector.py` into a checkout of [AgentDojo](https://github.com/ethz-spylab/agentdojo)
-and registering the `melon` defense (see [Section 3](#3-install-melon-into-agentdojo)).
+MELON is implemented as an AgentDojo *pipeline element*. **No manual patching is
+required** — the bundled `agentdojo/` folder already registers the `melon`
+defense and ships the detector, so you only need to install it.
 
 ---
 
 ## 1. Environment setup
 
-MELON runs on top of [AgentDojo](https://github.com/ethz-spylab/agentdojo). We
-recommend Python **3.11+** and an isolated environment.
+MELON runs on top of [AgentDojo](https://github.com/ethz-spylab/agentdojo), which
+is bundled (pre-integrated) in this repository under `agentdojo/`. We recommend
+Python **3.11+** and an isolated environment.
 
 ```bash
 # 1) Create and activate an environment (conda or venv both work)
@@ -48,15 +50,20 @@ conda activate melon
 # --- or ---
 # python3.11 -m venv .venv && source .venv/bin/activate
 
-# 2) Clone AgentDojo and this repository
-git clone https://github.com/ethz-spylab/agentdojo
+# 2) Clone this repository (it already contains the MELON-patched AgentDojo)
 git clone https://github.com/lindsey98/melon
+cd melon
 
-# 3) Install AgentDojo (with the transformers extra used by some detectors)
+# 3) Install the bundled, pre-integrated AgentDojo
+#    (the transformers extra is used by some detectors)
 cd agentdojo
 pip install -e ".[transformers]"
 cd ..
 ```
+
+That's it — the `melon` defense is now available to
+`python -m agentdojo.scripts.benchmark` (see [Section 4](#4-running-with-hosted-models)
+and [Section 5](#5-running-with-locally-served-models)).
 
 ### Optional extras (depending on how you run MELON)
 
@@ -124,63 +131,7 @@ export MELON_EMBED_MODEL="BAAI/bge-large-en-v1.5"
 
 ---
 
-## 3. Install MELON into AgentDojo
-
-### Step 1 — register the defense
-
-In `agentdojo/src/agentdojo/agent_pipeline/agent_pipeline.py`, import MELON and add
-it to the list of defenses:
-
-```python
-from agentdojo.agent_pipeline.pi_detector import MELON
-
-...
-
-DEFENSES = [
-    "tool_filter",
-    "transformers_pi_detector",
-    "spotlighting_with_delimiting",
-    "repeat_user_prompt",
-    "melon",
-]
-```
-
-In the `from_config` function, add the MELON branch (mirroring `tool_filter`):
-
-```python
-if config.defense == "melon":
-    tools_loop = ToolsExecutionLoop(
-        [
-            ToolsExecutor(),
-            MELON(
-                llm,
-                threshold=0.1,
-            ),
-        ]
-    )
-
-    pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
-    pipeline.name = f"{llm_name}-{config.defense}"
-    return pipeline
-```
-
-### Step 2 — copy the detector
-
-Copy the entire `pi_detector.py` from this repository to
-`agentdojo/src/agentdojo/agent_pipeline/pi_detector.py`.
-
-Changes relative to AgentDojo's stock file:
-
-1. `class PromptInjectionDetector.query` now sets `extra_args["is_injection"]`,
-   which is used to stop the agent once an attack is detected.
-2. `class MELON` is added.
-3. The detection embedding backend is configurable (OpenAI / local
-   OpenAI-compatible / sentence-transformers) via the environment variables in
-   [Section 2](#2-environment-variables) — **no API key is hard-coded**.
-
----
-
-## 4. Running with hosted models
+## 3. Running with hosted models
 
 Set the relevant provider key (e.g. `OPENAI_API_KEY`) and run AgentDojo's
 benchmark, selecting `--defense melon`:
@@ -196,7 +147,7 @@ python -m agentdojo.scripts.benchmark \
 
 ---
 
-## 5. Running with locally-served models
+## 4. Running with locally-served models
 
 MELON supports agent LLMs that are **served locally**, including
 **Qwen3-30B-A3B-Instruct-2507** and **Llama-3.3-70B-Instruct**. AgentDojo talks
@@ -297,7 +248,7 @@ runs entirely on your own hardware.
 
 ---
 
-## 6. Using MELON in your own project
+## 5. Using MELON in your own project
 
 `pi_detector.py` is self-contained apart from its AgentDojo imports. The `MELON`
 class can be embedded in any AgentDojo-style pipeline:
@@ -312,6 +263,44 @@ detector = MELON(
     embed_model="BAAI/bge-large-en-v1.5",
 )
 ```
+
+---
+
+## How MELON is integrated (reference)
+
+You do **not** need to do any of this — the bundled `agentdojo/` already contains
+these changes. This section documents *what* was changed, for transparency and in
+case you want to port MELON onto a different AgentDojo checkout.
+
+In `agentdojo/src/agentdojo/agent_pipeline/agent_pipeline.py`:
+
+1. `MELON` is imported alongside the other detectors:
+   ```python
+   from agentdojo.agent_pipeline.pi_detector import MELON, TransformersBasedPIDetector
+   ```
+2. `"melon"` is added to the `DEFENSES` list.
+3. A `melon` branch is added to `from_config` (mirroring `tool_filter`):
+   ```python
+   if config.defense == "melon":
+       tools_loop = ToolsExecutionLoop(
+           [
+               ToolsExecutor(tool_output_formatter),
+               MELON(llm, threshold=0.1),
+           ]
+       )
+       pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
+       pipeline.name = f"{llm_name}-{config.defense}"
+       return pipeline
+   ```
+
+In `agentdojo/src/agentdojo/agent_pipeline/pi_detector.py`:
+
+1. `class MELON` is added.
+2. `class PromptInjectionDetector.query` sets `extra_args["is_injection"]`, used to
+   stop the agent once an attack is detected.
+3. The detection embedding backend is configurable (OpenAI / local
+   OpenAI-compatible / sentence-transformers) via the environment variables in
+   [Section 2](#2-environment-variables) — **no API key is hard-coded**.
 
 ---
 
