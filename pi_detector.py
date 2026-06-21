@@ -1,3 +1,4 @@
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
@@ -200,16 +201,78 @@ class MELON(PromptInjectionDetector):
         threshold: float = 0.1,
         mode: Literal["message", "full_conversation"] = "full_conversation",
         raise_on_injection: bool = False,
+        embed_provider: str | None = None,
+        embed_model: str | None = None,
+        embed_base_url: str | None = None,
+        embed_api_key: str | None = None,
     ) -> None:
         super().__init__(mode=mode, raise_on_injection=raise_on_injection)
-        from transformers import AutoModel
 
-        # self.embed_model = AutoModel.from_pretrained('nvidia/NV-Embed-v2', trust_remote_code=True)
-        from openai import OpenAI
-        client = OpenAI(api_key="your-api-key")  # Replace with your OpenAI API key
-        self.detection_model = client
         self.threshold = threshold
         self.llm = llm
+
+        # The detection backend that turns tool calls into embeddings is fully
+        # configurable so that MELON can run against the OpenAI API, a local
+        # OpenAI-compatible server (e.g. vLLM/TEI), or a fully-local
+        # sentence-transformers model (no external API required). This makes it
+        # possible to run MELON together with locally-served agent LLMs such as
+        # Qwen3-30B-A3B-Instruct-2507 or Llama-3.3-70B-Instruct without ever
+        # calling a hosted API.
+        #
+        # Configuration precedence: explicit constructor argument > environment
+        # variable > sensible default.
+        self.embed_provider = (
+            embed_provider or os.getenv("MELON_EMBED_PROVIDER", "openai")
+        ).lower()
+
+        if self.embed_provider in ("sentence-transformers", "sentence_transformers", "st", "local-embed"):
+            default_embed_model = "BAAI/bge-large-en-v1.5"
+        else:
+            default_embed_model = "text-embedding-3-large"
+        self.embed_model = embed_model or os.getenv("MELON_EMBED_MODEL") or default_embed_model
+
+        self.detection_model = None
+        self._st_model = None
+        self._init_embedder(embed_base_url, embed_api_key)
+
+    def _init_embedder(self, embed_base_url: str | None, embed_api_key: str | None) -> None:
+        """Initialise the embedding backend selected by ``self.embed_provider``."""
+        if self.embed_provider in ("openai", "local", "openai-compatible", "vllm"):
+            from openai import OpenAI
+
+            if self.embed_provider == "openai":
+                # Hosted OpenAI API. ``OPENAI_API_KEY`` (and optionally
+                # ``OPENAI_BASE_URL``) are read from the environment by default.
+                api_key = embed_api_key or os.getenv("OPENAI_API_KEY")
+                base_url = embed_base_url or os.getenv("OPENAI_BASE_URL")
+            else:
+                # Local / self-hosted OpenAI-compatible embedding server.
+                api_key = embed_api_key or os.getenv("MELON_EMBED_API_KEY", "EMPTY")
+                base_url = embed_base_url or os.getenv("MELON_EMBED_BASE_URL", "http://localhost:8001/v1")
+
+            kwargs = {"api_key": api_key}
+            if base_url:
+                kwargs["base_url"] = base_url
+            self.detection_model = OpenAI(**kwargs)
+        elif self.embed_provider in ("sentence-transformers", "sentence_transformers", "st", "local-embed"):
+            from sentence_transformers import SentenceTransformer
+
+            self._st_model = SentenceTransformer(self.embed_model, trust_remote_code=True)
+        else:
+            raise ValueError(
+                f"Invalid embedding provider: {self.embed_provider!r}. Valid options are "
+                "'openai', 'openai-compatible' (alias 'local'/'vllm'), or 'sentence-transformers'."
+            )
+
+    def _embed(self, text: str) -> np.ndarray:
+        """Embed a single tool-call string with the configured backend."""
+        if self._st_model is not None:
+            return np.array(self._st_model.encode(text, normalize_embeddings=False))
+        response = self.detection_model.embeddings.create(
+            input=text,
+            model=self.embed_model,
+        )
+        return np.array(response.data[0].embedding)
 
     def query(
         self,
@@ -393,12 +456,7 @@ class MELON(PromptInjectionDetector):
 
             # transform tool calls into embeddings
             for tool_call in filtered_masked_tool_calls:
-                response = self.detection_model.embeddings.create(
-                    input=tool_call,
-                    model="text-embedding-3-large"
-                )
-
-                emb = np.array(response.data[0].embedding)
+                emb = self._embed(tool_call)
                 masked_tool_calls_emb.append(emb)
         
             masked_tool_emb_bank += masked_tool_calls_emb
@@ -428,12 +486,7 @@ class MELON(PromptInjectionDetector):
         original_tool_calls = transform_tool_calls(original_outputs[-1]["tool_calls"])
         original_tool_calls_emb = []
         for tool_call in original_tool_calls:
-            response = self.detection_model.embeddings.create(
-                input=tool_call,
-                model="text-embedding-3-large"
-            )
-
-            emb = np.array(response.data[0].embedding)
+            emb = self._embed(tool_call)
             original_tool_calls_emb.append(emb)
 
         max_cosine_sim = -1
