@@ -132,9 +132,9 @@ def show_results(suite_name: str, results: SuiteResults, show_security_results: 
 )
 @click.option(
     "--logdir",
-    default="./runs",
+    default="./logs",
     type=Path,
-    help="The directory to save logs. Defaults to `./runs`.",
+    help="The directory to save logs. Defaults to `./logs`.",
 )
 @click.option(
     "--attack",
@@ -212,7 +212,7 @@ def main(
     suites: tuple[str, ...],
     model: ModelsEnum,
     benchmark_version: str = "v1.2.2",
-    logdir: Path = Path("./runs"),
+    logdir: Path = Path("./logs"),
     user_tasks: tuple[str, ...] = (),
     injection_tasks: tuple[str, ...] = (),
     model_id: str | None = None,

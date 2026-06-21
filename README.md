@@ -258,7 +258,7 @@ from agentdojo.agent_pipeline.pi_detector import MELON
 
 detector = MELON(
     llm,                       # your AgentDojo LLM pipeline element
-    threshold=0.1,
+    threshold=0.8,             # cosine-similarity threshold for flagging an injection
     embed_provider="sentence-transformers",   # or "openai" / "openai-compatible"
     embed_model="BAAI/bge-large-en-v1.5",
 )
@@ -285,11 +285,11 @@ In `agentdojo/src/agentdojo/agent_pipeline/agent_pipeline.py`:
        tools_loop = ToolsExecutionLoop(
            [
                ToolsExecutor(tool_output_formatter),
-               MELON(llm, threshold=0.1),
+               MELON(llm),
            ]
        )
        pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
-       pipeline.name = f"{llm_name}-{config.defense}"
+       pipeline.name = f"{llm_name}+melon"
        return pipeline
    ```
 
@@ -301,6 +301,21 @@ In `agentdojo/src/agentdojo/agent_pipeline/pi_detector.py`:
 3. The detection embedding backend is configurable (OpenAI / local
    OpenAI-compatible / sentence-transformers) via the environment variables in
    [Section 2](#2-environment-variables) — **no API key is hard-coded**.
+
+### Logging layout
+
+Logs follow AgentDojo's convention and are written under `logs/` by default
+(override with `--logdir`). The pipeline name is `<model>+melon` when the MELON
+defense is enabled and just `<model>` when it is off:
+
+```
+logs/
+└── Llama-3.3-70B-Instruct+melon/        # <model>+melon  (no suffix when defense is off)
+    └── banking/                          # suite
+        └── user_task_0/                  # user task
+            ├── none/none.json                                # benign run
+            └── important_instructions/injection_task_0.json  # under-attack run
+```
 
 ---
 

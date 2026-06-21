@@ -286,13 +286,10 @@ class AgentPipeline(BasePipelineElement):
             tools_loop = ToolsExecutionLoop(
                 [
                     ToolsExecutor(tool_output_formatter),
-                    MELON(
-                        llm,
-                        threshold=0.1,
-                    ),
+                    MELON(llm),
                 ]
             )
             pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
-            pipeline.name = f"{llm_name}-{config.defense}"
+            pipeline.name = f"{llm_name}+melon"
             return pipeline
         raise ValueError("Invalid defense name")

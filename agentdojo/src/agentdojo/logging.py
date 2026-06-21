@@ -163,7 +163,7 @@ class TraceLogger(Logger):
         from importlib.metadata import PackageNotFoundError, version
 
         self.delegate = delegate
-        self.dirpath = delegate.logdir or os.path.join(os.path.dirname(__file__), "../../", "runs")
+        self.dirpath = delegate.logdir or os.path.join(os.path.dirname(__file__), "../../", "logs")
         self.context = contextargs
         self.messages: list[ChatMessage] = []
         self.delegate.messages = []
