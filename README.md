@@ -52,7 +52,11 @@ python -m agentdojo.scripts.benchmark --model Qwen3-30B-A3B-Instruct-2507 \
     --attack tool_knowledge --defense melon -s slack
 ```
 
-For a fully-local run (no hosted API at all), set `MELON_EMBED_PROVIDER=sentence-transformers` in `.env` so MELON's detection embeddings run locally too.
+For a fully-local run (no hosted API at all), set `MELON_EMBED_PROVIDER=sentence-transformers` in `.env` so MELON's detection embeddings run locally too. Optionally set `HF_HOME` and pre-download the embedding model so the first run doesn't block:
+
+```bash
+python scripts/prefetch_embed_model.py   # downloads MELON_EMBED_MODEL into $HF_HOME
+```
 
 ## Use MELON in your own project
 
