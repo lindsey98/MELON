@@ -252,6 +252,17 @@ class MELON(PromptInjectionDetector):
                 # ``OPENAI_BASE_URL``) are read from the environment by default.
                 api_key = embed_api_key or os.getenv("OPENAI_API_KEY")
                 base_url = embed_base_url or os.getenv("OPENAI_BASE_URL")
+                if not api_key:
+                    raise ValueError(
+                        "MELON's detection-embedding backend is set to 'openai' but no API key was "
+                        "found (OPENAI_API_KEY is unset). MELON needs an embedding model to compare "
+                        "tool calls; this is separate from your agent LLM. Either:\n"
+                        "  - set OPENAI_API_KEY (hosted embeddings), or\n"
+                        "  - run fully locally with MELON_EMBED_PROVIDER=sentence-transformers "
+                        "(pip install sentence-transformers), or\n"
+                        "  - point at a local OpenAI-compatible embedding server with "
+                        "MELON_EMBED_PROVIDER=openai-compatible and MELON_EMBED_BASE_URL."
+                    )
             else:
                 # Local / self-hosted OpenAI-compatible embedding server.
                 api_key = embed_api_key or os.getenv("MELON_EMBED_API_KEY", "EMPTY")
