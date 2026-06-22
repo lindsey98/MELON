@@ -1,7 +1,5 @@
 # [ICML'25] MELON: Provable Defense Against Indirect Prompt Injection Attacks in AI Agents
 
-Official implementation of [MELON](https://arxiv.org/abs/2502.05174) (Masked re-Execution and TooL comparisON), an indirect-prompt-injection defense for LLM agents. MELON re-executes the agent's trajectory with a masked user prompt and flags an attack when the masked and original tool calls are similar.
-
 This repo bundles [AgentDojo](https://github.com/ethz-spylab/agentdojo) under `agentdojo/` **with MELON already integrated** (the `melon` defense is registered and `pi_detector.py` is in place) — no manual patching needed.
 
 ## Install
