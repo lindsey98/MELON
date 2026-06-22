@@ -54,6 +54,10 @@ class ModelsEnum(StrEnum):
     """Gemini 2.5 Pro Preview 05/06"""
     LOCAL = "local"
     """Local model"""
+    QWEN_3_30B_LOCAL = "Qwen3-30B-A3B-Instruct-2507"
+    """Qwen3 30B A3B Instruct 2507 served locally via an OpenAI-compatible server"""
+    LLAMA_3_3_70B_LOCAL = "Llama-3.3-70B-Instruct"
+    """Llama 3.3 70B Instruct served locally via an OpenAI-compatible server"""
     VLLM_PARSED = "vllm_parsed"
     """VLLM parsed model"""
     OPENAI_COMPATIBLE = "openai-compatible"
@@ -86,6 +90,8 @@ MODEL_PROVIDERS = {
     ModelsEnum.GEMINI_2_5_FLASH_PREVIEW_04_17: "google",
     ModelsEnum.GEMINI_2_5_PRO_PREVIEW_05_06: "google",
     ModelsEnum.LOCAL: "local",
+    ModelsEnum.QWEN_3_30B_LOCAL: "local",
+    ModelsEnum.LLAMA_3_3_70B_LOCAL: "local",
     ModelsEnum.VLLM_PARSED: "vllm_parsed",
     ModelsEnum.OPENAI_COMPATIBLE: "openai-compatible",
 }
@@ -117,6 +123,8 @@ MODEL_NAMES = {
     "gemini-2.5-flash-preview-04-17": "AI model developed by Google",
     "gemini-2.5-pro-preview-05-06": "AI model developed by Google",
     "local": "Local model",
+    "Qwen3-30B-A3B-Instruct-2507": "Qwen created by Alibaba Cloud.",
+    "Llama-3.3-70B-Instruct": "Llama",
     "vllm_parsed": "Local model",
     "openai-compatible": "AI assistant",
 }

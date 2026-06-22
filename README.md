@@ -39,14 +39,15 @@ python -m agentdojo.scripts.benchmark --model gpt-4o-2024-05-13 \
 
 **Locally-served model (Qwen3-30B-A3B-Instruct-2507 / Llama-3.3-70B-Instruct):**
 
-Serve it with vLLM (tool calling enabled), then point AgentDojo at the local server with `--model vllm_parsed` (set `LOCAL_LLM_PORT` in `.env`):
+`Qwen3-30B-A3B-Instruct-2507` and `Llama-3.3-70B-Instruct` are registered in `models.py` with the `local` provider. Serve the model with vLLM (tool calling enabled) under that served name, set `LOCAL_LLM_PORT` in `.env`, then pass the name to `--model`:
 
 ```bash
 # Qwen3 → --tool-call-parser hermes  |  Llama-3.3 → --tool-call-parser llama3_json
 vllm serve Qwen/Qwen3-30B-A3B-Instruct-2507 --port 8000 \
+    --served-model-name Qwen3-30B-A3B-Instruct-2507 \
     --enable-auto-tool-choice --tool-call-parser hermes
 
-python -m agentdojo.scripts.benchmark --model vllm_parsed \
+python -m agentdojo.scripts.benchmark --model Qwen3-30B-A3B-Instruct-2507 \
     --attack tool_knowledge --defense melon -s slack
 ```
 
