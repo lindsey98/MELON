@@ -60,6 +60,10 @@ issues = "https://github.com/ethz-spylab/agentdojo/issues"
 
 [project.optional-dependencies]
 transformers = ["transformers>=4.41.2", "torch>=2.2.1"]
+# Dependencies for the MELON defense (embedding-based detection). numpy is used
+# directly by the detector; sentence-transformers enables the fully-local
+# embedding backend (MELON_EMBED_PROVIDER=sentence-transformers).
+melon = ["numpy>=1.26", "sentence-transformers>=3.0.0"]
 
 [build-system]
 requires = ["hatchling"]
