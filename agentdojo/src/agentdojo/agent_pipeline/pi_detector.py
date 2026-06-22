@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
 from agentdojo.agent_pipeline.errors import AbortAgentError
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionCall, FunctionsRuntime
 from agentdojo.types import ChatMessage, MessageContentBlock, get_text_content_as_str, text_content_block_from_string
+
+logger = logging.getLogger("agentdojo.agent_pipeline.melon")
 
 
 def transform_tool_calls(tool_calls):
@@ -439,33 +442,103 @@ class MELON(PromptInjectionDetector):
         masked_query, masked_runtime, masked_env, masked_outputs, masked_extra_args = self.llm.query(masked_query, masked_runtime, masked_env, masked_messages, masked_extra_args)
 
         # Add any newly-seen masked tool calls (with their embeddings) to the bank.
-        if masked_outputs[-1]["tool_calls"] is not None:
-            for masked_tool_call in transform_tool_calls(masked_outputs[-1]["tool_calls"]):
-                if masked_tool_call not in masked_tool_call_bank:
-                    masked_tool_call_bank[masked_tool_call] = self._embed(masked_tool_call)
+        masked_tool_calls = (
+            transform_tool_calls(masked_outputs[-1]["tool_calls"])
+            if masked_outputs[-1]["tool_calls"] is not None
+            else []
+        )
+        for masked_tool_call in masked_tool_calls:
+            if masked_tool_call not in masked_tool_call_bank:
+                masked_tool_call_bank[masked_tool_call] = self._embed(masked_tool_call)
+        if masked_tool_calls:
             updated_extra_args["masked_tool_call_bank"] = copy.deepcopy(masked_tool_call_bank)
 
         original_outputs = updated_messages
         if original_outputs[-1]["tool_calls"] is None:
-            # Nothing to compare against; treat as benign.
+            # No tool calls in the original response: nothing to compare, benign.
+            self._log_detection(original_outputs[-1], masked_outputs[-1], [], masked_tool_calls, [], 0.0, False)
             return (updated_query, updated_runtime, updated_env, updated_messages, updated_extra_args), (False, 0.0)
 
-        # Flag an injection if any original tool call is too similar (in embedding
-        # space) to a masked tool call.
-        original_tool_calls_emb = [self._embed(tc) for tc in transform_tool_calls(original_outputs[-1]["tool_calls"])]
+        # Compare every original tool call against every masked tool call in the
+        # bank, recording all pairwise cosine similarities. An injection is flagged
+        # when the most similar pair exceeds the threshold.
+        original_tool_calls = transform_tool_calls(original_outputs[-1]["tool_calls"])
+        original_tool_calls_emb = [self._embed(tc) for tc in original_tool_calls]
 
-        max_cosine_sim = -1.0
-        is_injection = False
-        for masked_tool_call_emb in masked_tool_call_bank.values():
-            for original_tool_call_emb in original_tool_calls_emb:
-                cosine_sim = np.dot(original_tool_call_emb, masked_tool_call_emb) / (
-                    np.linalg.norm(original_tool_call_emb) * np.linalg.norm(masked_tool_call_emb)
+        similarities = []
+        for masked_tool_call, masked_emb in masked_tool_call_bank.items():
+            for original_tool_call, original_emb in zip(original_tool_calls, original_tool_calls_emb):
+                cosine_sim = float(
+                    np.dot(original_emb, masked_emb) / (np.linalg.norm(original_emb) * np.linalg.norm(masked_emb))
                 )
-                max_cosine_sim = max(max_cosine_sim, cosine_sim)
-                if cosine_sim > self.threshold:
-                    is_injection = True
-                    break
-            if is_injection:
-                break
+                similarities.append(
+                    {
+                        "original_tool_call": original_tool_call,
+                        "masked_tool_call": masked_tool_call,
+                        "cosine_similarity": cosine_sim,
+                    }
+                )
+
+        max_cosine_sim = max((s["cosine_similarity"] for s in similarities), default=-1.0)
+        is_injection = max_cosine_sim > self.threshold
+
+        self._log_detection(
+            original_outputs[-1], masked_outputs[-1], original_tool_calls, masked_tool_calls, similarities, max_cosine_sim, is_injection
+        )
 
         return (updated_query, updated_runtime, updated_env, updated_messages, updated_extra_args), (is_injection, max_cosine_sim)
+
+    def _log_detection(
+        self,
+        original_response,
+        masked_response,
+        original_tool_calls,
+        masked_tool_calls,
+        similarities,
+        max_cosine_sim,
+        is_injection,
+    ) -> None:
+        """Record a MELON detection result.
+
+        The record (original vs. masked model response, all pairwise embedding
+        similarities, the max similarity, the threshold, and the similar/dissimilar
+        decision) is appended to the active AgentDojo logger's context so it is
+        persisted in the per-task JSON under the ``melon_detection`` key. Also emits
+        a one-line console summary. A no-op when MELON is used outside an AgentDojo
+        benchmark run (no context logger on the stack).
+        """
+
+        def _content(message) -> str:
+            content = message.get("content") if isinstance(message, dict) else None
+            return get_text_content_as_str(content) if content else ""
+
+        record = {
+            "is_injection": bool(is_injection),
+            "max_cosine_similarity": float(max_cosine_sim),
+            "threshold": float(self.threshold),
+            "original_response": {"content": _content(original_response), "tool_calls": original_tool_calls},
+            "masked_response": {"content": _content(masked_response), "tool_calls": masked_tool_calls},
+            "similarities": similarities,
+        }
+
+        logger.info(
+            "MELON detection: is_injection=%s max_cosine_similarity=%.4f threshold=%.2f "
+            "(original_tool_calls=%s, masked_tool_calls=%s)",
+            record["is_injection"],
+            record["max_cosine_similarity"],
+            record["threshold"],
+            original_tool_calls,
+            masked_tool_calls,
+        )
+
+        try:
+            from agentdojo.logging import Logger
+
+            active_logger = Logger.get()
+        except Exception:
+            return
+        if not hasattr(active_logger, "set_contextarg") or not hasattr(active_logger, "context"):
+            return
+        records = list(active_logger.context.get("melon_detection", []))
+        records.append(record)
+        active_logger.set_contextarg("melon_detection", records)
