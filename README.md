@@ -62,8 +62,11 @@ cd ..
 ```
 
 That's it — the `melon` defense is now available to
-`python -m agentdojo.scripts.benchmark` (see [Section 4](#4-running-with-hosted-models)
-and [Section 5](#5-running-with-locally-served-models)).
+`python -m agentdojo.scripts.benchmark` (see [Section 3](#3-running-with-hosted-models)
+and [Section 4](#4-running-with-locally-served-models)).
+
+Before running, set up your API keys in a `.env` file and load them — see
+[Section 2](#2-environment-variables).
 
 ### Optional extras (depending on how you run MELON)
 
@@ -84,7 +87,33 @@ pip install "vllm>=0.6.3"
 ## 2. Environment variables
 
 MELON and AgentDojo are configured entirely through environment variables — no
-keys are hard-coded. Set only the variables relevant to the providers you use.
+keys are hard-coded. All variables live in a single `.env` file.
+
+**Setup:**
+
+1. Rename `.env.example` to `.env` and populate it with the keys you need
+   (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and — for Gemini via Vertex AI —
+   `GCP_PROJECT` / `GCP_LOCATION`). Set only the variables for the providers you
+   actually use.
+
+   ```bash
+   cp .env.example .env
+   # then edit .env
+   ```
+
+2. Load the keys into your environment before running:
+
+   ```bash
+   set -a && source .env && set +a
+   ```
+
+> AgentDojo's benchmark script also auto-loads `.env` from the current directory,
+> but `set -a && source .env && set +a` additionally exports the variables to
+> other tools you may launch (e.g. `vllm serve`, `huggingface-cli`). `.env` is
+> git-ignored, so your real keys are never committed.
+
+The full list of variables and their defaults is documented inline in
+[`.env.example`](.env.example). For reference:
 
 ### Agent-LLM provider keys (used by AgentDojo to drive the agent)
 
@@ -92,8 +121,9 @@ keys are hard-coded. Set only the variables relevant to the providers you use.
 | --- | --- | --- |
 | `OPENAI_API_KEY` | `--model gpt-4o-*` etc. | OpenAI API key for hosted GPT models. |
 | `ANTHROPIC_API_KEY` | `--model claude-*` | Anthropic API key. |
-| `TOGETHER_API_KEY` | `--model meta-llama/*` (Together) | Together AI key for hosted open models. |
-| `GCP_PROJECT`, `GCP_LOCATION` | `--model gemini-*` | Vertex AI project/location for Gemini. |
+| `TOGETHER_API_KEY` | Together-hosted open models | Together AI key. |
+| `CO_API_KEY` | `--model command-r*` | Cohere API key. |
+| `GCP_PROJECT`, `GCP_LOCATION` | `--model gemini-*` | Vertex AI project/location for Gemini (Gemini uses Vertex AI, not a plain `GOOGLE_API_KEY`). |
 | `LOCAL_LLM_PORT` | `--model local` / `--model vllm_parsed` | Port of your local vLLM server (default `8000`). |
 | `OPENAI_COMPATIBLE_BASE_URL` | `--model openai-compatible` | Base URL of any OpenAI-compatible server. |
 | `OPENAI_COMPATIBLE_API_KEY` | `--model openai-compatible` | API key for that server (use `EMPTY` for vLLM). |
@@ -116,27 +146,23 @@ These can also be passed directly to the `MELON(...)` constructor
 (`embed_provider`, `embed_model`, `embed_base_url`, `embed_api_key`), which take
 precedence over the environment variables.
 
-Example for the default (hosted OpenAI embeddings):
+For a **fully local** run (no external API at all), set these in `.env`:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-Example for a **fully local** run (no external API at all):
-
-```bash
-export MELON_EMBED_PROVIDER="sentence-transformers"
-export MELON_EMBED_MODEL="BAAI/bge-large-en-v1.5"
+MELON_EMBED_PROVIDER=sentence-transformers
+MELON_EMBED_MODEL=BAAI/bge-large-en-v1.5
 ```
 
 ---
 
 ## 3. Running with hosted models
 
-Set the relevant provider key (e.g. `OPENAI_API_KEY`) and run AgentDojo's
-benchmark, selecting `--defense melon`:
+Put the relevant provider key (e.g. `OPENAI_API_KEY`) in your `.env`, load it,
+then run AgentDojo's benchmark with `--defense melon`:
 
 ```bash
+set -a && source .env && set +a
+
 python -m agentdojo.scripts.benchmark \
     --model gpt-4o-2024-05-13 \
     --attack tool_knowledge \
