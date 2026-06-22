@@ -8,6 +8,7 @@ Python 3.11+ recommended.
 
 ```bash
 git clone https://github.com/lindsey98/melon && cd melon
+conda create -n melon python=3.11 -y && conda activate melon
 cd agentdojo && pip install -e ".[transformers]" && cd ..
 pip install openai numpy                 # MELON detection backend
 pip install sentence-transformers        # optional: fully-local embeddings
