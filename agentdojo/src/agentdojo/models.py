@@ -90,8 +90,8 @@ MODEL_PROVIDERS = {
     ModelsEnum.GEMINI_2_5_FLASH_PREVIEW_04_17: "google",
     ModelsEnum.GEMINI_2_5_PRO_PREVIEW_05_06: "google",
     ModelsEnum.LOCAL: "local",
-    ModelsEnum.QWEN_3_30B_LOCAL: "local",
-    ModelsEnum.LLAMA_3_3_70B_LOCAL: "local",
+    ModelsEnum.QWEN_3_30B_LOCAL: "vllm_parsed",
+    ModelsEnum.LLAMA_3_3_70B_LOCAL: "vllm_parsed",
     ModelsEnum.VLLM_PARSED: "vllm_parsed",
     ModelsEnum.OPENAI_COMPATIBLE: "openai-compatible",
 }

@@ -40,7 +40,7 @@ python -m agentdojo.scripts.benchmark --model gpt-4o-2024-05-13 \
 
 **Locally-served model (Qwen3-30B-A3B-Instruct-2507 / Llama-3.3-70B-Instruct):**
 
-`Qwen3-30B-A3B-Instruct-2507` and `Llama-3.3-70B-Instruct` are registered in `models.py` with the `local` provider. Serve the model with vLLM (tool calling enabled) under that served name, set `LOCAL_LLM_PORT` in `.env`, then pass the name to `--model`:
+`Qwen3-30B-A3B-Instruct-2507` and `Llama-3.3-70B-Instruct` are registered in `models.py` and use **native tool calling** (the `vllm_parsed` provider → `OpenAILLM`), so vLLM **must** be served with `--enable-auto-tool-choice --tool-call-parser` — otherwise tool calls arrive as plain text and the agent can't act. Serve the model under its registered name, set `LOCAL_LLM_PORT` in `.env`, then pass the name to `--model`:
 
 ```bash
 # Qwen3 → --tool-call-parser hermes  |  Llama-3.3 → --tool-call-parser llama3_json
