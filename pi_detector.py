@@ -281,6 +281,13 @@ class MELON(PromptInjectionDetector):
                 api_key = embed_api_key or os.getenv("MELON_EMBED_API_KEY", "EMPTY")
                 base_url = embed_base_url or os.getenv("MELON_EMBED_BASE_URL", "http://localhost:8001/v1")
 
+            # Normalize: ignore an empty/whitespace base_url (fall back to the
+            # provider default), and prepend http:// if the scheme is missing
+            # (e.g. "localhost:8001/v1"), which the OpenAI SDK otherwise rejects.
+            base_url = (base_url or "").strip()
+            if base_url and not base_url.startswith(("http://", "https://")):
+                base_url = "http://" + base_url
+
             kwargs = {"api_key": api_key}
             if base_url:
                 kwargs["base_url"] = base_url
