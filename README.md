@@ -2,6 +2,8 @@
 
 This repo bundles [AgentDojo](https://github.com/ethz-spylab/agentdojo) under `agentdojo/` **with MELON already integrated** (the `melon` defense is registered and `pi_detector.py` is in place) — no manual patching needed.
 
+It also bundles the three dynamic task suites from [AgentDyn](https://github.com/SaFo-Lab/AgentDyn) (`shopping`, `github`, `dailylife` — 60 open-ended user tasks and their injection test cases), so the benchmark runs on all seven suites with the same arguments.
+
 ## Install
 
 Python 3.11+ recommended.
@@ -9,12 +11,15 @@ Python 3.11+ recommended.
 ```bash
 git clone https://github.com/lindsey98/melon && cd melon
 conda create -n melon python=3.11 -y && conda activate melon
-# Installs AgentDojo + MELON detection deps (numpy, sentence-transformers) + transformers extra
+# Installs AgentDojo (incl. the AgentDyn suites) + MELON detection deps
+# (numpy, sentence-transformers) + transformers extra
 cd agentdojo 
 pip install -e ".[transformers,melon]"
 cd ../
 pip install "vllm>=0.6.3"                # optional: serve local agent LLMs
 ```
+
+The AgentDyn suites are part of the bundled `agentdojo` package — no separate AgentDyn install is needed (do **not** `pip install` AgentDyn's own fork on top; it would replace the MELON-integrated `agentdojo`).
 
 The `melon` extra pulls in `sentence-transformers`, so the fully-local embedding backend works out of the box.
 
@@ -33,11 +38,20 @@ All supported variables are documented inline in [`.env.example`](.env.example).
 
 Add `--defense melon` to AgentDojo's benchmark. Logs are written to `logs/<model>+melon/<suite>/<user_task>/<attack|none>/<injection|none>.json`.
 
+Available suites (`-s`): AgentDojo's `workspace`, `slack`, `banking`, `travel` and AgentDyn's `shopping`, `github`, `dailylife`. Omit `-s` to run all seven.
+
 **Hosted model:**
 
 ```bash
 python -m agentdojo.scripts.benchmark --model gpt-4o-2024-05-13 \
     --attack tool_knowledge --defense melon -s slack
+```
+
+**AgentDyn suite:**
+
+```bash
+python -m agentdojo.scripts.benchmark --model gpt-4o-2024-05-13 \
+    --attack important_instructions --defense melon -s shopping
 ```
 
 **Locally-served model (Qwen3-30B-A3B-Instruct-2507 / Llama-3.3-70B-Instruct):**
