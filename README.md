@@ -10,7 +10,9 @@ Python 3.11+ recommended.
 git clone https://github.com/lindsey98/melon && cd melon
 conda create -n melon python=3.11 -y && conda activate melon
 # Installs AgentDojo + MELON detection deps (numpy, sentence-transformers) + transformers extra
-cd agentdojo && pip install -e ".[transformers,melon]" && cd ..
+cd agentdojo 
+pip install -e ".[transformers,melon]"
+cd ../
 pip install "vllm>=0.6.3"                # optional: serve local agent LLMs
 ```
 
@@ -49,7 +51,7 @@ vllm serve Qwen/Qwen3-30B-A3B-Instruct-2507 --port 8000 \
     --enable-auto-tool-choice --tool-call-parser hermes
 
 python -m agentdojo.scripts.benchmark --model Qwen3-30B-A3B-Instruct-2507 \
-    --attack tool_knowledge --defense melon -s slack
+    --attack tool_knowledge --defense melon
 ```
 
 For a fully-local run (no hosted API at all), set `MELON_EMBED_PROVIDER=sentence-transformers` in `.env` so MELON's detection embeddings run locally too. Optionally set `HF_HOME` and pre-download the embedding model so the first run doesn't block:
