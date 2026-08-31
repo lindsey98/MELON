@@ -110,7 +110,9 @@ def get_llm(provider: str, model: str, model_id: str | None, tool_delimiter: str
             base_url=f"http://localhost:{port}/v1",
         )
         if model_id is None:
-            model_id = _get_local_model_id(port)
+            # A named local model (e.g. "Qwen3.6-35B-A3B") doubles as the served model
+            # name; the generic "local" model discovers whatever the server exposes.
+            model_id = model if model != "local" else _get_local_model_id(port)
         logging.info(f"Using local model: {model_id}")
         logging.info(f"Using tool delimiter: {tool_delimiter}")
         llm = LocalLLM(client, model_id, tool_delimiter=tool_delimiter)
