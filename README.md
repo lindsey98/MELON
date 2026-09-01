@@ -4,6 +4,8 @@ This repo bundles [AgentDojo](https://github.com/ethz-spylab/agentdojo) under `a
 
 It also bundles the three dynamic task suites from [AgentDyn](https://github.com/SaFo-Lab/AgentDyn) (`shopping`, `github`, `dailylife` — 60 open-ended user tasks and their injection test cases), so the benchmark runs on all seven suites with the same arguments.
 
+For [ASB (Agent Security Bench)](https://github.com/agiresearch/ASB), which is a separate agent framework (not AgentDojo-based), MELON is vendored into [`asb/`](asb/) as a native ASB defense so it can be evaluated against ASB's **observation prompt injection** attack. See [`asb/README.md`](asb/README.md) for setup and how to run.
+
 ## Install
 
 Python 3.11+ recommended.
