@@ -54,6 +54,16 @@ python -m agentdojo.scripts.benchmark --model gpt-4o-2024-05-13 \
     --attack important_instructions --defense melon -s shopping
 ```
 
+**ChatInject attack** ([ChatInject](https://github.com/hwanchang00/ChatInject)): reconstructs the target model's chat template inside an injected tool output so an attacker-authored system/user/assistant exchange is parsed as real conversation history. Pick the variant matching your served model's template:
+
+- `chat_inject_qwen3`, `chat_inject_glm` — single fake turn; works on any suite.
+- `chat_inject_{qwen3,glm}_with_utility_system_multiturn_7` and the `..._authority_endorsement_...` variants — prepend a pre-generated multi-turn dialogue. Data lives in `agentdojo/src/agentdojo/attacks/chatinject_data/` and **only covers the `banking` / `slack` / `travel` injection GOALs** (matched by exact GOAL string); other suites raise a `ValueError`.
+
+```bash
+python -m agentdojo.scripts.benchmark --model Qwen3-30B-A3B-Instruct-2507 \
+    --attack chat_inject_qwen3_with_utility_system_multiturn_7 --defense melon -s banking
+```
+
 **Locally-served model (Qwen3-30B-A3B-Instruct-2507 / Llama-3.3-70B-Instruct):**
 
 `Qwen3-30B-A3B-Instruct-2507` and `Llama-3.3-70B-Instruct` are registered in `models.py` and use **native tool calling** (the `vllm_parsed` provider → `OpenAILLM`), so vLLM **must** be served with `--enable-auto-tool-choice --tool-call-parser` — otherwise tool calls arrive as plain text and the agent can't act. Serve the model under its registered name, set `LOCAL_LLM_PORT` in `.env`, then pass the name to `--model`:
