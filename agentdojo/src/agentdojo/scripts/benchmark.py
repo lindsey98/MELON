@@ -50,6 +50,14 @@ def benchmark_suite(
     if len(user_tasks) > 0:
         print(f"Using user tasks: {', '.join(user_tasks)}")
 
+    # AgentDyn's dynamic suites ship with a "complete tasks without confirmation" system
+    # message. Scope it to those suites only so the original AgentDojo suites keep the
+    # upstream default (and stay comparable to the MELON paper). An explicit
+    # --system-message / --system-message-name still overrides this.
+    AGENTDYN_SUITES = {"shopping", "github", "dailylife"}
+    if system_message is None and system_message_name is None and suite.name in AGENTDYN_SUITES:
+        system_message_name = "agentdyn"
+
     pipeline = AgentPipeline.from_config(
         PipelineConfig(
             llm=model,
