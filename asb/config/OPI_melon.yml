@@ -5,11 +5,11 @@ attack_tool:
   # - non-agg
 
 llms:
-  - gpt-4o-mini
+  # Locally-served model via vLLM (OpenAI-compatible). Must match the vLLM --served-model-name.
+  # Reached through LOCAL_BASE_URL / LOCAL_API_KEY (defaults http://localhost:8000/v1, "EMPTY").
+  - Qwen3-30B-A3B-Instruct-2507
+  # - gpt-4o-mini
   # - gpt-4o-2024-08-06
-  # - claude-3-5-sonnet-20240620
-  # - ollama/qwen2:72b
-  # - ollama/llama3.1:8b
 
 attack_types:
   # - combined_attack
@@ -18,9 +18,13 @@ attack_types:
   # - escape_characters
   # - naive
 
-# MELON contrastive prompt-injection defense (see pyopenagi/agents/melon.py).
-# Configure the detection-embedding backend via MELON_EMBED_* env vars, e.g.
-#   MELON_EMBED_PROVIDER=openai            (default; needs OPENAI_API_KEY)
-#   MELON_EMBED_PROVIDER=sentence-transformers   (fully local, no API)
+# MELON contrastive prompt-injection defense (see pyopenagi/agents/melon.py). Works in both the
+# ReAct and plan-then-execute loops. Comment this line out for the undefended baseline.
+# The detection-embedding backend is INDEPENDENT of the agent LLM; configure it via MELON_EMBED_*:
+#   MELON_EMBED_PROVIDER=openai                 (default; needs OPENAI_API_KEY)
+#   MELON_EMBED_PROVIDER=sentence-transformers  (fully local, no API)
+#   MELON_EMBED_PROVIDER=openai-compatible + MELON_EMBED_BASE_URL   (local embedding server)
 defense_type: melon
 suffix: melon
+# NOTE: agent_attack.py doesn't pass --workflow_mode; use scripts/run_opi.sh (WORKFLOW_MODE=react)
+# to run MELON under the ReAct loop, or main_attacker.py --workflow_mode react directly.

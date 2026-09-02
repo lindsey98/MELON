@@ -9,9 +9,8 @@ from ...utils.utils import get_from_env
 from transformers import AutoTokenizer
 
 from huggingface_hub import login
-# To use gated/private HF models, log in first, e.g. via `huggingface-cli login`
-# or by setting the HF_TOKEN environment variable (do not hard-code a token here).
-# login(token=os.environ["HF_TOKEN"])
+# If you need to authenticate to the HF Hub for a gated model, set the HF_TOKEN env var
+# (e.g. `login(token=os.environ["HF_TOKEN"])`). Never hardcode a token here.
 
 
 class vLLM(BaseLLM):

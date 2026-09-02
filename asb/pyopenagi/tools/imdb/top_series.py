@@ -1,12 +1,5 @@
 from ..base import BaseRapidAPITool
 
-<<<<<<< HEAD
-from typing import Any, Dict, List, Optional
-
-# from pydantic import root_validator
-
-=======
->>>>>>> fc11356bf831aa12ba6596beb66649d91afab637
 from pyopenagi.utils.utils import get_from_env
 
 import requests

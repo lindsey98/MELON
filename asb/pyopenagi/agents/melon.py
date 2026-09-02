@@ -174,17 +174,25 @@ class MELON:
     def _collect_tool_outputs(self, messages) -> str:
         """Concatenate the tool observations seen so far into a single document.
 
-        ASB stores tool outputs inside assistant messages as
-        ``"[Action]: ...;[Observation]: ..."``. We pull out the observation text,
-        which is what a downstream step (and the injected instruction) actually
-        sees.
+        Handles both ASB message shapes:
+
+        * ReAct mode uses proper OpenAI-style ``{"role": "tool", "content": ...}``
+          messages (like AgentDojo); the injected OPI text lands in that content.
+        * Plan-then-execute mode bundles tool output into an assistant string
+          ``"[Action]: ...;[Observation]: ..."``; we pull out the observation part.
         """
         chunks = []
         for m in messages:
+            role = m.get("role")
             content = m.get("content")
-            if not isinstance(content, str) or "[Observation]:" not in content:
+            if not isinstance(content, str):
                 continue
-            observation = content.split("[Observation]:", 1)[1].strip()
+            if role == "tool":
+                observation = content.strip()
+            elif "[Observation]:" in content:
+                observation = content.split("[Observation]:", 1)[1].strip()
+            else:
+                continue
             if observation:
                 chunks.append(
                     "==================================================\n\n"
