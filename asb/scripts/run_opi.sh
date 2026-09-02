@@ -6,22 +6,26 @@
 #   bash scripts/run_opi.sh melon        # MELON defense (this repo's defense of interest)
 #   bash scripts/run_opi.sh camel        # CaMeL defense (needs the camel-prompt-injection kernel)
 #
-# Run from the asb/ directory. Requires a vLLM (or other OpenAI-compatible) endpoint; set
-# LOCAL_BASE_URL / LOCAL_API_KEY if not the defaults (http://localhost:8000/v1, "EMPTY").
-# MELON also needs an embedding backend (MELON_EMBED_PROVIDER=openai|sentence-transformers|...).
+# MELON also needs an embedding backend: MELON_EMBED_PROVIDER=openai|sentence-transformers|...
 set -euo pipefail
 
 DEFENSE="${1:-}"                                   # "" (baseline), "melon", or "camel"
 MODEL="${MODEL:-Qwen3.6-35B-A3B}"      # must match the vLLM --served-model-name
 ATTACK_TYPE="${ATTACK_TYPE:-context_ignoring}"
-ATTACKER_TOOLS="${ATTACKER_TOOLS:-data/attack_tools_test.jsonl}"  # small slice for a smoke test
-TASK_NUM="${TASK_NUM:-5}"
-# automatic = model plans itself (use this for real results); manual = use each agent's hardcoded
-# plan (diagnostic: removes the planning variable, only affects the baseline, not CaMeL);
-# react = dynamic tool-calling loop (full OPI attack surface). Each ASB agent has only 2 normal
-# tools, so ~4 turns suffice; REACT_MAX_TURNS lets you raise the cap if a task ever hits it.
+ATTACKER_TOOLS="${ATTACKER_TOOLS:-data/all_attack_tools_non_aggressive.jsonl}"  # small slice for a smoke test
+TASK_NUM="${TASK_NUM:-6}"
+
 WORKFLOW_MODE="${WORKFLOW_MODE:-react}"
 REACT_MAX_TURNS="${REACT_MAX_TURNS:-6}"
+# How many tool observations carry the OPI injection. 0 = every one (ASB default, unrealistic);
+# 1 = only the first tool result (a single compromised data source, the realistic case).
+OPI_INJECT_LIMIT="${OPI_INJECT_LIMIT:-1}"
+# Resume by default: tasks whose JSON trace already exists are skipped (reusing their metrics).
+# Set FORCE_RERUN=1 to recompute everything from scratch.
+FORCE_RERUN="${FORCE_RERUN:-}"
+# CLEAN=1 runs with NO attack (no OPI injection, no attacker tool) to measure the clean-utility
+# ceiling. Traces go to a separate <workflow>_clean label, and each task runs once (not per tool).
+CLEAN="${CLEAN:-}"
 # Reasoning models (Qwen3 with --reasoning-parser) spend tokens on <think> before the tool call;
 # ASB's default 256 truncates them. Bump the generation budget.
 MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-2048}"
@@ -54,6 +58,7 @@ RES="logs/observation_prompt_injection/${MODEL}_${ATTACK_TYPE}_${LABEL}.csv"
 
 DEFENSE_ARG=()
 [ -n "$DEFENSE" ] && DEFENSE_ARG=(--defense_type "$DEFENSE")
+[ -n "$FORCE_RERUN" ] && DEFENSE_ARG+=(--force_rerun)
 
 echo "Model=$MODEL  attack_type=$ATTACK_TYPE  defense=${LABEL}  attacker_tools=$ATTACKER_TOOLS"
 python main_attacker.py \
@@ -65,6 +70,7 @@ python main_attacker.py \
   --task_num "$TASK_NUM" \
   --workflow_mode "$WORKFLOW_MODE" \
   --react_max_turns "$REACT_MAX_TURNS" \
+  --opi_inject_limit "$OPI_INJECT_LIMIT" \
   --max_new_tokens "$MAX_NEW_TOKENS" \
   --database /nonexistent_no_memory_db \
   --res_file "$RES" \
