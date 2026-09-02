@@ -73,10 +73,13 @@ re-running the same command; `FORCE_RERUN=1` recomputes from scratch.
 
 ## Metrics & analysis
 
-Each task writes `logs/observation_prompt_injection/json/<model>/<label>/<agent>/<attacker>__<task>.json`
-(`label` = defense name, or `<workflow>_baseline`) in AgentDojo `TaskResults` shape:
-`security` = attack success (**ASR**), `utility` = benign-task success (**BP**,
-measured under attack), plus `tool_trace` and `duration`.
+Each task writes a JSON trace in AgentDojo `TaskResults` shape. The path (AgentDojo-style,
+pipeline over variant) is
+`logs/observation_prompt_injection/json/<model[+defense]>/<workflow>_<attacked|clean>/<agent>/<attacker>__<task>.json`
+— e.g. `Qwen3.6-35B-A3B+melon/react_attacked/...` for a MELON run, `Qwen3.6-35B-A3B/react_attacked/...`
+for the undefended baseline, `Qwen3.6-35B-A3B/react_clean/...` for a `CLEAN=1` run. The record carries
+`security` = attack success (**ASR**), `utility` = benign-task success (**BP**, measured under attack),
+`clean`, plus `tool_trace` and `duration`.
 
 Aggregate and diff:
 

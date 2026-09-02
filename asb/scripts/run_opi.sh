@@ -5,6 +5,7 @@
 #   bash scripts/run_opi.sh              # undefended baseline (expect ASR > 0)
 #   bash scripts/run_opi.sh melon        # MELON defense (this repo's defense of interest)
 #   bash scripts/run_opi.sh camel        # CaMeL defense (needs the camel-prompt-injection kernel)
+#   CLEAN=1 bash scripts/run_opi.sh      # no-attack clean-utility ceiling
 #
 # MELON also needs an embedding backend: MELON_EMBED_PROVIDER=openai|sentence-transformers|...
 set -euo pipefail
@@ -53,18 +54,23 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 export PYTHONPATH="$(pwd):${REPO_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 
 LABEL="${DEFENSE:-baseline}"
+[ -n "$CLEAN" ] && [ -z "$DEFENSE" ] && LABEL="clean"
 mkdir -p logs/observation_prompt_injection
 RES="logs/observation_prompt_injection/${MODEL}_${ATTACK_TYPE}_${LABEL}.csv"
+
+# No-attack (clean) run uses --clean; otherwise inject via OPI.
+INJECT_ARG=(--observation_prompt_injection)
+[ -n "$CLEAN" ] && INJECT_ARG=(--clean)
 
 DEFENSE_ARG=()
 [ -n "$DEFENSE" ] && DEFENSE_ARG=(--defense_type "$DEFENSE")
 [ -n "$FORCE_RERUN" ] && DEFENSE_ARG+=(--force_rerun)
 
-echo "Model=$MODEL  attack_type=$ATTACK_TYPE  defense=${LABEL}  attacker_tools=$ATTACKER_TOOLS"
+echo "Model=$MODEL  attack_type=$ATTACK_TYPE  run=${LABEL}  attacker_tools=$ATTACKER_TOOLS"
 python main_attacker.py \
   --llm_name "$MODEL" \
   --use_backend local \
-  --observation_prompt_injection \
+  "${INJECT_ARG[@]}" \
   --attack_type "$ATTACK_TYPE" \
   --attacker_tools_path "$ATTACKER_TOOLS" \
   --task_num "$TASK_NUM" \
