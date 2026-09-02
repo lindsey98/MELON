@@ -58,13 +58,19 @@ cd asb
 MODEL=Qwen3.6-35B-A3B bash scripts/run_opi.sh            # undefended baseline
 MODEL=Qwen3.6-35B-A3B bash scripts/run_opi.sh melon      # MELON
 MODEL=Qwen3.6-35B-A3B bash scripts/run_opi.sh camel      # CaMeL (needs kernel)
+
+# clean-utility ceiling (no attack) — dedicated script:
+MODEL=Qwen3.6-35B-A3B bash scripts/run_clean.sh          # no defense
+MODEL=Qwen3.6-35B-A3B bash scripts/run_clean.sh camel    # defense on benign tasks (over-defense)
 ```
 
 Knobs (env vars): `MODEL`, `ATTACK_TYPE`, `ATTACKER_TOOLS`, `TASK_NUM`,
 `WORKFLOW_MODE` (`react`/`automatic`/`manual`), `REACT_MAX_TURNS`,
 `OPI_INJECT_LIMIT` (default `1`; `0` = every observation), `FORCE_RERUN=1`,
-`CLEAN=1` (no attack — clean-utility ceiling), `MAX_NEW_TOKENS`,
-`LOCAL_DISABLE_THINKING`, and the `ASB_JUDGE_*` overrides.
+`MAX_WORKERS` (concurrent tasks, default `16` — high values exhaust file
+descriptors), `MAX_NEW_TOKENS`, `LOCAL_DISABLE_THINKING`, `LOG_DIR`, and the
+`ASB_JUDGE_*` overrides. Per-task `conda list` reqs checks are skipped by default
+(`ASB_SKIP_REQS=1`); set `ASB_SKIP_REQS=""` to restore them.
 
 A full 1020-case sweep is just the baseline + defense runs on the full attacker
 tools (`ATTACKER_TOOLS=data/all_attack_tools.jsonl`, larger `TASK_NUM`). Resume is
@@ -73,11 +79,11 @@ re-running the same command; `FORCE_RERUN=1` recomputes from scratch.
 
 ## Metrics & analysis
 
-Each task writes a JSON trace in AgentDojo `TaskResults` shape. The path (AgentDojo-style,
-pipeline over variant) is
-`logs/observation_prompt_injection/json/<model[+defense]>/<workflow>_<attacked|clean>/<agent>/<attacker>__<task>.json`
-— e.g. `Qwen3.6-35B-A3B+melon/react_attacked/...` for a MELON run, `Qwen3.6-35B-A3B/react_attacked/...`
-for the undefended baseline, `Qwen3.6-35B-A3B/react_clean/...` for a `CLEAN=1` run. The record carries
+Each task writes a JSON trace in AgentDojo `TaskResults` shape, nested like AgentDojo under a
+per-run top directory (`run_opi.sh`/`run_clean.sh` bake it into `--log_dir`):
+`logs/<model>_nodefense | <model>+<defense>/<agent>/<user_task>/<attack|none>/<injection|none>.json`
+— e.g. `logs/Qwen3.6-35B-A3B+melon/financial_analyst_agent/<task>/context_ignoring/<attacker_tool>.json`
+for a MELON run; a clean (no-attack) run lands at `.../<user_task>/none/none.json`. The record carries
 `security` = attack success (**ASR**), `utility` = benign-task success (**BP**, measured under attack),
 `clean`, plus `tool_trace` and `duration`.
 

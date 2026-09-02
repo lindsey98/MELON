@@ -5,7 +5,7 @@
 #   bash scripts/run_opi.sh              # undefended baseline (expect ASR > 0)
 #   bash scripts/run_opi.sh melon        # MELON defense (this repo's defense of interest)
 #   bash scripts/run_opi.sh camel        # CaMeL defense (needs the camel-prompt-injection kernel)
-#   CLEAN=1 bash scripts/run_opi.sh      # no-attack clean-utility ceiling
+#   # for a no-attack clean-utility run, use scripts/run_clean.sh
 #
 # MELON also needs an embedding backend: MELON_EMBED_PROVIDER=openai|sentence-transformers|...
 set -euo pipefail
@@ -24,9 +24,14 @@ OPI_INJECT_LIMIT="${OPI_INJECT_LIMIT:-1}"
 # Resume by default: tasks whose JSON trace already exists are skipped (reusing their metrics).
 # Set FORCE_RERUN=1 to recompute everything from scratch.
 FORCE_RERUN="${FORCE_RERUN:-}"
-# CLEAN=1 runs with NO attack (no OPI injection, no attacker tool) to measure the clean-utility
-# ceiling. Traces go to a separate <workflow>_clean label, and each task runs once (not per tool).
-CLEAN="${CLEAN:-}"
+# For a no-attack (clean) utility run, use the dedicated scripts/run_clean.sh instead.
+# Concurrent tasks. ASB's original 5000 exhausts file descriptors and overloads the LLM server;
+# keep it modest and match it to what your SGLang endpoint can handle.
+MAX_WORKERS="${MAX_WORKERS:-16}"
+# Where the per-task JSON traces go. Top dir encodes the run: <model>_nodefense or <model>+<defense>,
+# e.g. logs/Qwen3.6-35B-A3B_nodefense/... and logs/Qwen3.6-35B-A3B+camel/...
+if [ -n "$DEFENSE" ]; then _PIPE="${MODEL}+${DEFENSE}"; else _PIPE="${MODEL}_nodefense"; fi
+LOG_DIR="${LOG_DIR:-logs/$_PIPE}"
 # Reasoning models (Qwen3 with --reasoning-parser) spend tokens on <think> before the tool call;
 # ASB's default 256 truncates them. Bump the generation budget.
 MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-2048}"
@@ -54,13 +59,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 export PYTHONPATH="$(pwd):${REPO_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 
 LABEL="${DEFENSE:-baseline}"
-[ -n "$CLEAN" ] && [ -z "$DEFENSE" ] && LABEL="clean"
 mkdir -p logs/observation_prompt_injection
 RES="logs/observation_prompt_injection/${MODEL}_${ATTACK_TYPE}_${LABEL}.csv"
-
-# No-attack (clean) run uses --clean; otherwise inject via OPI.
-INJECT_ARG=(--observation_prompt_injection)
-[ -n "$CLEAN" ] && INJECT_ARG=(--clean)
 
 DEFENSE_ARG=()
 [ -n "$DEFENSE" ] && DEFENSE_ARG=(--defense_type "$DEFENSE")
@@ -70,13 +70,15 @@ echo "Model=$MODEL  attack_type=$ATTACK_TYPE  run=${LABEL}  attacker_tools=$ATTA
 python main_attacker.py \
   --llm_name "$MODEL" \
   --use_backend local \
-  "${INJECT_ARG[@]}" \
+  --observation_prompt_injection \
   --attack_type "$ATTACK_TYPE" \
   --attacker_tools_path "$ATTACKER_TOOLS" \
   --task_num "$TASK_NUM" \
   --workflow_mode "$WORKFLOW_MODE" \
   --react_max_turns "$REACT_MAX_TURNS" \
   --opi_inject_limit "$OPI_INJECT_LIMIT" \
+  --max_workers "$MAX_WORKERS" \
+  ${LOG_DIR:+--log_dir "$LOG_DIR"} \
   --max_new_tokens "$MAX_NEW_TOKENS" \
   --database /nonexistent_no_memory_db \
   --res_file "$RES" \
