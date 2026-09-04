@@ -127,57 +127,53 @@ def _render_message(msg: dict) -> str:
     return f'<div class="msg sys"><span class="role">{_esc(role)}</span><div class="text">{_esc(text)}</div></div>'
 
 
-def _render_melon(detections: list) -> str:
-    if not detections:
+def _render_melon_card(d: Any, i: int) -> str:
+    """Render one MELON detection (the check run against a single tool response)."""
+    if not isinstance(d, dict):
         return ""
-    cards = ['<div class="box-label" style="margin-top:16px;font-size:12px">MELON DETECTION</div>']
-    for i, d in enumerate(detections):
-        if not isinstance(d, dict):
-            continue
-        is_inj = d.get("is_injection")
-        cos = d.get("max_cosine_similarity")
-        thr = d.get("threshold")
-        cos_s = f"{cos:.3f}" if isinstance(cos, (int, float)) else _esc(cos)
-        thr_s = f"{thr:.2f}" if isinstance(thr, (int, float)) else _esc(thr)
-        verdict = (
-            f'<span class="hl">true</span>   max cosine <span class="over">{cos_s}</span> &ge; {thr_s}'
-            if is_inj
-            else f'<span class="under">false</span>   max cosine {cos_s} &lt; {thr_s}'
-        )
-        badge = '<span class="stop-badge">FLAGGED</span>' if is_inj else ""
-        orig = d.get("original_response") or {}
-        masked = d.get("masked_response") or {}
-        orig_calls = ", ".join(orig.get("tool_calls") or []) or "&mdash;"
-        masked_calls = ", ".join(masked.get("tool_calls") or []) or "&mdash;"
-        panes = (
-            '<div class="cmp">'
-            f'<div class="pane"><div class="lbl">Original run</div><code>{_esc(orig_calls)}</code></div>'
-            f'<div class="pane"><div class="lbl">Masked run (task hidden)</div><code>{_esc(masked_calls)}</code></div>'
-            "</div>"
-        )
-        sims = d.get("similarities") or []
-        sim_rows = ""
-        if sims:
-            top = sorted(sims, key=lambda s: s.get("cosine_similarity", 0), reverse=True)[:6]
-            max_sim = max((s.get("cosine_similarity", 0) for s in top), default=1) or 1
-            rows = ""
-            for s in top:
-                cs = s.get("cosine_similarity", 0)
-                width = int(40 + 160 * (cs / max_sim)) if max_sim else 40
-                hit = " hit" if isinstance(thr, (int, float)) and cs > thr else ""
-                val_cls = "over" if isinstance(thr, (int, float)) and cs > thr else ""
-                pair = f'{s.get("original_tool_call", "?")}  vs  {s.get("masked_tool_call", "?")}'
-                rows += (
-                    f'<div class="simrow"><code>{_esc(pair)}</code>'
-                    f'<div class="bar{hit}" style="width:{width}px"></div>'
-                    f'<span class="val {val_cls}">{cs:.3f}</span></div>'
-                )
-            sim_rows = f'<div class="box"><div class="box-label">ORIGINAL vs MASKED CANDIDATES</div>{rows}</div>'
-        cards.append(
-            f'<div class="msg melcard">{badge}<span class="role">MELON &middot; step {i + 1}</span>'
-            f'<code class="melbox">is_injection: {verdict}</code>{panes}{sim_rows}</div>'
-        )
-    return "".join(cards)
+    is_inj = d.get("is_injection")
+    cos = d.get("max_cosine_similarity")
+    thr = d.get("threshold")
+    cos_s = f"{cos:.3f}" if isinstance(cos, (int, float)) else _esc(cos)
+    thr_s = f"{thr:.2f}" if isinstance(thr, (int, float)) else _esc(thr)
+    verdict = (
+        f'<span class="hl">true</span>   max cosine <span class="over">{cos_s}</span> &ge; {thr_s}'
+        if is_inj
+        else f'<span class="under">false</span>   max cosine {cos_s} &lt; {thr_s}'
+    )
+    badge = '<span class="stop-badge">FLAGGED</span>' if is_inj else ""
+    orig = d.get("original_response") or {}
+    masked = d.get("masked_response") or {}
+    orig_calls = ", ".join(orig.get("tool_calls") or []) or "&mdash;"
+    masked_calls = ", ".join(masked.get("tool_calls") or []) or "&mdash;"
+    panes = (
+        '<div class="cmp">'
+        f'<div class="pane"><div class="lbl">Original run</div><code>{_esc(orig_calls)}</code></div>'
+        f'<div class="pane"><div class="lbl">Masked run (task hidden)</div><code>{_esc(masked_calls)}</code></div>'
+        "</div>"
+    )
+    sims = d.get("similarities") or []
+    sim_rows = ""
+    if sims:
+        top = sorted(sims, key=lambda s: s.get("cosine_similarity", 0), reverse=True)[:6]
+        max_sim = max((s.get("cosine_similarity", 0) for s in top), default=1) or 1
+        rows = ""
+        for s in top:
+            cs = s.get("cosine_similarity", 0)
+            width = int(40 + 160 * (cs / max_sim)) if max_sim else 40
+            hit = " hit" if isinstance(thr, (int, float)) and cs > thr else ""
+            val_cls = "over" if isinstance(thr, (int, float)) and cs > thr else ""
+            pair = f'{s.get("original_tool_call", "?")}  vs  {s.get("masked_tool_call", "?")}'
+            rows += (
+                f'<div class="simrow"><code>{_esc(pair)}</code>'
+                f'<div class="bar{hit}" style="width:{width}px"></div>'
+                f'<span class="val {val_cls}">{cs:.3f}</span></div>'
+            )
+        sim_rows = f'<div class="box"><div class="box-label">ORIGINAL vs MASKED CANDIDATES</div>{rows}</div>'
+    return (
+        f'<div class="msg melcard">{badge}<span class="role">MELON &middot; check {i + 1}</span>'
+        f'<code class="melbox">is_injection: {verdict}</code>{panes}{sim_rows}</div>'
+    )
 
 
 def render_trace_html(record: dict) -> str:
@@ -211,8 +207,24 @@ def render_trace_html(record: dict) -> str:
         subnote.append(f"error: {_esc(error)}")
 
     messages = record.get("messages") or []
-    body = "".join(_render_message(m) for m in messages if isinstance(m, dict))
-    melon = _render_melon(record.get("melon_detection") or [])
+    detections = record.get("melon_detection") or []
+
+    # MELON runs one detection per tool response, in order, so interleave each detection
+    # card right after the tool message it checked. Any leftover detections (should not
+    # normally happen) are appended at the end so nothing is silently dropped.
+    parts = []
+    det_idx = 0
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        parts.append(_render_message(m))
+        if m.get("role") == "tool" and det_idx < len(detections):
+            parts.append(_render_melon_card(detections[det_idx], det_idx))
+            det_idx += 1
+    while det_idx < len(detections):
+        parts.append(_render_melon_card(detections[det_idx], det_idx))
+        det_idx += 1
+    body = "".join(parts)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -227,7 +239,6 @@ def render_trace_html(record: dict) -> str:
   <div class="title">Execution Trace <span>&mdash; {" &middot; ".join(meta_bits)}{("  &middot;  " + " &middot; ".join(status)) if status else ""}</span></div>
   <div class="subnote">{" &middot; ".join(subnote) if subnote else "&nbsp;"}</div>
   {body}
-  {melon}
 </div>
 </body>
 </html>
