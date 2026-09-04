@@ -1,5 +1,6 @@
 import importlib
 import logging
+import os
 import warnings
 from itertools import repeat
 from multiprocessing import Pool
@@ -216,6 +217,12 @@ def show_results(suite_name: str, results: SuiteResults, show_security_results: 
     default=tuple(),
     help="The modules to load before running the benchmark. Useful for registering custom attacks, defenses, or suites.",
 )
+@click.option(
+    "--html",
+    "emit_html",
+    is_flag=True,
+    help="Also write a rendered HTML trace next to each per-task JSON (e.g. none.json -> none.html).",
+)
 def main(
     suites: tuple[str, ...],
     model: ModelsEnum,
@@ -232,7 +239,13 @@ def main(
     max_workers: int = 1,
     force_rerun: bool = False,
     modules_to_load: tuple[str, ...] = (),
+    emit_html: bool = False,
 ):
+    # Set before any worker/pool is created so child processes inherit it; the trace
+    # logger reads AGENTDOJO_TRACE_HTML when deciding whether to render HTML.
+    if emit_html:
+        os.environ["AGENTDOJO_TRACE_HTML"] = "1"
+
     for module in modules_to_load:
         importlib.import_module(module)
 

@@ -11,6 +11,7 @@ from rich.live import Live
 from rich.table import Table
 
 from agentdojo.ast_utils import create_python_function_from_tool_call
+from agentdojo.trace_html import render_trace_html
 from agentdojo.types import ChatMessage
 
 LOGGER_STACK = contextvars.ContextVar("logger_stack", default=[])
@@ -238,24 +239,36 @@ class TraceLogger(Logger):
         if not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)
         file = f"{directory}/{injection_task_id or 'none'}.json"
+        record = {
+            "suite_name": suite_name,
+            "pipeline_name": pipeline_name,
+            "user_task_id": user_task_id,
+            "injection_task_id": injection_task_id,
+            "attack_type": attack_type if attack_type != "none" else None,
+            "injections": injections,
+            "messages": self.messages,
+            "error": self.error,
+            **other_context,
+        }
+        serialized = json.dumps(
+            record,
+            indent=4,
+            default=lambda o: o.model_dump() if isinstance(o, BaseModel) else o,
+        )
         with open(file, "w") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "suite_name": suite_name,
-                        "pipeline_name": pipeline_name,
-                        "user_task_id": user_task_id,
-                        "injection_task_id": injection_task_id,
-                        "attack_type": attack_type if attack_type != "none" else None,
-                        "injections": injections,
-                        "messages": self.messages,
-                        "error": self.error,
-                        **other_context,
-                    },
-                    indent=4,
-                    default=lambda o: o.model_dump() if isinstance(o, BaseModel) else o,
-                )
-            )
+            f.write(serialized)
+
+        # Optionally drop a human-readable HTML trace next to the JSON (none.json ->
+        # none.html, injection_task_1.json -> injection_task_1.html). Enabled by the
+        # benchmark's --html flag (via AGENTDOJO_TRACE_HTML). Best-effort: a render error
+        # must never break the benchmark run or the JSON that was just written.
+        if os.getenv("AGENTDOJO_TRACE_HTML"):
+            try:
+                html_str = render_trace_html(json.loads(serialized))
+                with open(f"{directory}/{injection_task_id or 'none'}.html", "w") as hf:
+                    hf.write(html_str)
+            except Exception as e:  # noqa: BLE001
+                warnings.warn(f"Failed to render HTML trace for {file}: {e}")
 
     def log_error(self, error: str):
         self.error = error
