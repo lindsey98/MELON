@@ -21,6 +21,9 @@ from agentdojo.models import ModelsEnum
 from agentdojo.task_suite.load_suites import get_suite, get_suites
 from agentdojo.task_suite.task_suite import TaskSuite
 
+# Suites that ship with AgentDyn's "complete tasks without confirmation" system message.
+AGENTDYN_SUITES = {"shopping", "github", "dailylife"}
+
 
 def benchmark_suite(
     suite: TaskSuite,
@@ -55,7 +58,6 @@ def benchmark_suite(
     # message. Scope it to those suites only so the original AgentDojo suites keep the
     # upstream default (and stay comparable to the MELON paper). An explicit
     # --system-message / --system-message-name still overrides this.
-    AGENTDYN_SUITES = {"shopping", "github", "dailylife"}
     if system_message is None and system_message_name is None and suite.name in AGENTDYN_SUITES:
         system_message_name = "agentdyn"
 
@@ -112,6 +114,104 @@ def show_results(suite_name: str, results: SuiteResults, show_security_results: 
         security_results = results["security_results"].values()
         avg_security = sum(security_results) / len(security_results)
         print(f"Average security: {avg_security * 100:.2f}%")
+
+
+def run_benchmark(
+    suites: tuple[str, ...],
+    model: ModelsEnum,
+    benchmark_version: str = "v1.2",
+    logdir: Path = Path("./logs"),
+    user_tasks: tuple[str, ...] = (),
+    injection_tasks: tuple[str, ...] = (),
+    model_id: str | None = None,
+    attack: str | None = None,
+    defense: str | None = None,
+    tool_delimiter: str = "tool",
+    system_message_name: str | None = None,
+    system_message: str | None = None,
+    max_workers: int = 1,
+    force_rerun: bool = False,
+    modules_to_load: tuple[str, ...] = (),
+    emit_html: bool = False,
+):
+    """Run the benchmark. Shared by the click CLI (`-m agentdojo.scripts.benchmark`)
+    and the top-level `main.py` entry point."""
+    # Set before any worker/pool is created so child processes inherit it; the trace
+    # logger reads AGENTDOJO_TRACE_HTML when deciding whether to render HTML.
+    if emit_html:
+        os.environ["AGENTDOJO_TRACE_HTML"] = "1"
+
+    for module in modules_to_load:
+        importlib.import_module(module)
+
+    if len(suites) == 0:
+        suites = tuple(get_suites(benchmark_version).keys())
+
+    if len(suites) != 1:
+        print(f"Benchmarking suites {', '.join(suites)}")
+
+    if len(suites) != 1 and len(user_tasks) != 0:
+        raise ValueError("A user task can be specified only when one suite is being executed")
+
+    if max_workers == 1:
+        results = {}
+        for suite_name in suites:
+            suite = get_suite(benchmark_version, suite_name)
+            results[suite_name] = benchmark_suite(
+                suite,
+                model,
+                logdir,
+                benchmark_version=benchmark_version,
+                user_tasks=user_tasks,
+                injection_tasks=injection_tasks,
+                model_id=model_id,
+                attack=attack,
+                defense=defense,
+                tool_delimiter=tool_delimiter,
+                system_message_name=system_message_name,
+                system_message=system_message,
+                force_rerun=force_rerun,
+            )
+        combined_results = SuiteResults(utility_results={}, security_results={}, injection_tasks_utility_results={})
+        for suite_name, result in results.items():
+            show_results(suite_name, result, attack is not None)
+            for user_task, injection_task in result["utility_results"]:
+                new_user_task = suite_name + "_" + user_task
+                combined_results["utility_results"][(new_user_task, injection_task)] = result["utility_results"][
+                    (user_task, injection_task)
+                ]
+            for user_task, injection_task in result["security_results"]:
+                new_user_task = suite_name + "_" + user_task
+                combined_results["security_results"][(new_user_task, injection_task)] = result["security_results"][
+                    (user_task, injection_task)
+                ]
+            for injection_task in result["injection_tasks_utility_results"]:
+                new_injection_task = suite_name + "_" + injection_task
+                combined_results["injection_tasks_utility_results"][new_injection_task] = result[
+                    "injection_tasks_utility_results"
+                ][injection_task]
+        show_results("combined", combined_results, attack is not None)
+        return
+
+    with Pool(max_workers) as p:
+        arguments = zip(
+            suites,
+            repeat(model),
+            repeat(logdir),
+            repeat(user_tasks),
+            repeat(injection_tasks),
+            repeat(model_id),
+            repeat(attack),
+            repeat(defense),
+            repeat(tool_delimiter),
+            repeat(system_message_name),
+            repeat(system_message),
+            repeat(force_rerun),
+        )
+        results = p.starmap(benchmark_suite, arguments)
+
+    for suite_name, result in zip(suites, results):
+        show_results(suite_name, result, attack is not None)
 
 
 @click.command()
@@ -241,82 +341,24 @@ def main(
     modules_to_load: tuple[str, ...] = (),
     emit_html: bool = False,
 ):
-    # Set before any worker/pool is created so child processes inherit it; the trace
-    # logger reads AGENTDOJO_TRACE_HTML when deciding whether to render HTML.
-    if emit_html:
-        os.environ["AGENTDOJO_TRACE_HTML"] = "1"
-
-    for module in modules_to_load:
-        importlib.import_module(module)
-
-    if len(suites) == 0:
-        suites = tuple(get_suites(benchmark_version).keys())
-
-    if len(suites) != 1:
-        print(f"Benchmarking suites {', '.join(suites)}")
-
-    if len(suites) != 1 and len(user_tasks) != 0:
-        raise ValueError("A user task can be specified only when one suite is being executed")
-
-    if max_workers == 1:
-        results = {}
-        for suite_name in suites:
-            suite = get_suite(benchmark_version, suite_name)
-            results[suite_name] = benchmark_suite(
-                suite,
-                model,
-                logdir,
-                benchmark_version=benchmark_version,
-                user_tasks=user_tasks,
-                injection_tasks=injection_tasks,
-                model_id=model_id,
-                attack=attack,
-                defense=defense,
-                tool_delimiter=tool_delimiter,
-                system_message_name=system_message_name,
-                system_message=system_message,
-                force_rerun=force_rerun,
-            )
-        combined_results = SuiteResults(utility_results={}, security_results={}, injection_tasks_utility_results={})
-        for suite_name, result in results.items():
-            show_results(suite_name, result, attack is not None)
-            for user_task, injection_task in result["utility_results"]:
-                new_user_task = suite_name + "_" + user_task
-                combined_results["utility_results"][(new_user_task, injection_task)] = result["utility_results"][
-                    (user_task, injection_task)
-                ]
-            for user_task, injection_task in result["security_results"]:
-                new_user_task = suite_name + "_" + user_task
-                combined_results["security_results"][(new_user_task, injection_task)] = result["security_results"][
-                    (user_task, injection_task)
-                ]
-            for injection_task in result["injection_tasks_utility_results"]:
-                new_injection_task = suite_name + "_" + injection_task
-                combined_results["injection_tasks_utility_results"][new_injection_task] = result[
-                    "injection_tasks_utility_results"
-                ][injection_task]
-        show_results("combined", combined_results, attack is not None)
-        exit(0)
-
-    with Pool(max_workers) as p:
-        arguments = zip(
-            suites,
-            repeat(model),
-            repeat(logdir),
-            repeat(user_tasks),
-            repeat(injection_tasks),
-            repeat(model_id),
-            repeat(attack),
-            repeat(defense),
-            repeat(tool_delimiter),
-            repeat(system_message_name),
-            repeat(system_message),
-            repeat(force_rerun),
-        )
-        results = p.starmap(benchmark_suite, arguments)
-
-    for suite_name, result in zip(suites, results):
-        show_results(suite_name, result, attack is not None)
+    run_benchmark(
+        suites=suites,
+        model=model,
+        benchmark_version=benchmark_version,
+        logdir=logdir,
+        user_tasks=user_tasks,
+        injection_tasks=injection_tasks,
+        model_id=model_id,
+        attack=attack,
+        defense=defense,
+        tool_delimiter=tool_delimiter,
+        system_message_name=system_message_name,
+        system_message=system_message,
+        max_workers=max_workers,
+        force_rerun=force_rerun,
+        modules_to_load=modules_to_load,
+        emit_html=emit_html,
+    )
 
 
 if __name__ == "__main__":
