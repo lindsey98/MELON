@@ -4,17 +4,17 @@
 Attack run:
     python main.py MODEL --run-attack \
         --attack important_instructions \
-        --suites banking slack travel workspace \
+        --suite banking slack travel workspace \
         --defense melon
 
 No-attack (utility) run:
     python main.py MODEL \
-        --suites banking slack travel workspace \
+        --suite banking slack travel workspace \
         --defense melon
 
 MODEL is the model name (e.g. gpt-4o-2024-05-13, or a local served name like
 Qwen3.6-35B-A3B). `--defense` is None (omit) or `melon`. Output always goes to
-`logs/`. `--force_rerun` and `--html` are optional. Omit `--suites` to run all
+`logs/`. `--force_rerun` and `--html` are optional. Omit `--suite` to run all
 suites in the benchmark version.
 """
 
@@ -65,11 +65,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Attack to use when --run-attack is set (e.g. important_instructions).",
     )
     p.add_argument(
-        "--suites",
+        "--suite",
         nargs="+",
         default=[],
+        dest="suites",
         metavar="SUITE",
-        help="Space-separated suites, e.g. --suites banking slack travel workspace. Omit to run all suites.",
+        help="Space-separated suites, e.g. --suite banking slack travel workspace. Omit to run all suites.",
     )
     p.add_argument(
         "--defense",

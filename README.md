@@ -36,21 +36,21 @@ All supported variables are documented inline in [`.env.example`](.env.example).
 
 ## Run
 
-Use `python main.py MODEL ...`. Output always goes to `logs/`; add `--defense melon` for the MELON defense. Available suites (`--suites`): AgentDojo's `workspace`, `slack`, `banking`, `travel` and AgentDyn's `shopping`, `github`, `dailylife`. Omit `--suites` to run all seven.
+Use `python main.py MODEL ...`. Output always goes to `logs/`; add `--defense melon` for the MELON defense. Available suites (`--suite`): AgentDojo's `workspace`, `slack`, `banking`, `travel` and AgentDyn's `shopping`, `github`, `dailylife`. Omit `--suite` to run all seven.
 
 **Attack run:**
 
 ```bash
 python main.py gpt-4o-2024-05-13 --run-attack \
     --attack important_instructions \
-    --suites banking slack travel workspace \
+    --suite banking slack travel workspace \
     --defense melon
 ```
 
 **No-attack (utility) run** — just drop `--run-attack`:
 
 ```bash
-python main.py gpt-4o-2024-05-13 --suites banking slack travel workspace --defense melon
+python main.py gpt-4o-2024-05-13 --suite banking slack travel workspace --defense melon
 ```
 
 Optional flags: `--force_rerun` (ignore cached results), `--html` (write a rendered HTML trace next to each per-task JSON), `-ut`/`-it` (restrict to specific user/injection tasks, repeatable). Run `python main.py --help` for the full list. Omit `--defense` (or pass `--defense None`) for the undefended baseline. Per-task JSON traces are written under `logs/<model[+defense]>/<suite>/<user_task>/<attack|none>/<injection|none>.json`.
@@ -64,7 +64,7 @@ The underlying click CLI (`python -m agentdojo.scripts.benchmark`) still works a
 
 ```bash
 python main.py Qwen3-30B-A3B-Instruct-2507 --run-attack \
-    --attack chat_inject_qwen3_with_utility_system_multiturn_7 --defense melon --suites banking
+    --attack chat_inject_qwen3_with_utility_system_multiturn_7 --defense melon --suite banking
 ```
 
 **Locally-served model (Qwen3-30B-A3B-Instruct-2507 / Llama-3.3-70B-Instruct):**
