@@ -20,6 +20,7 @@ suites in the benchmark version.
 
 import argparse
 import logging
+import os
 from pathlib import Path
 
 from rich.logging import RichHandler
@@ -109,6 +110,11 @@ def main() -> None:
 
     attack = args.attack if args.run_attack else None
 
+    # HTML rendering is triggered by an env var the logger reads (works across agentdojo versions),
+    # rather than a run_benchmark argument.
+    if args.html:
+        os.environ["AGENTDOJO_TRACE_HTML"] = "1"
+
     run_benchmark(
         suites=tuple(args.suites),
         model=args.model,
@@ -125,7 +131,6 @@ def main() -> None:
         max_workers=args.max_workers,
         force_rerun=args.force_rerun,
         modules_to_load=tuple(args.modules_to_load),
-        emit_html=args.html,
     )
 
 
