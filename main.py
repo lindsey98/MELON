@@ -19,6 +19,7 @@ suites in the benchmark version.
 """
 
 import argparse
+import importlib
 import logging
 import os
 from pathlib import Path
@@ -27,7 +28,8 @@ from rich.logging import RichHandler
 
 from agentdojo.agent_pipeline.agent_pipeline import DEFENSES
 from agentdojo.models import ModelsEnum
-from agentdojo.scripts.benchmark import run_benchmark
+from agentdojo.scripts.benchmark import benchmark_suite, show_results
+from agentdojo.task_suite.load_suites import get_suite, get_suites
 
 # Output directory is fixed (not a CLI option).
 LOGDIR = Path("logs")
@@ -68,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--suite",
         nargs="+",
         default=[],
-        dest="suites",
+        dest="suite",
         metavar="SUITE",
         help="Space-separated suites, e.g. --suite banking slack travel workspace. Omit to run all suites.",
     )
@@ -111,28 +113,37 @@ def main() -> None:
 
     attack = args.attack if args.run_attack else None
 
-    # HTML rendering is triggered by an env var the logger reads (works across agentdojo versions),
-    # rather than a run_benchmark argument.
+    # HTML rendering is triggered by an env var the logger reads (works across agentdojo versions).
     if args.html:
         os.environ["AGENTDOJO_TRACE_HTML"] = "1"
 
-    run_benchmark(
-        suites=tuple(args.suites),
-        model=args.model,
-        benchmark_version=args.benchmark_version,
-        logdir=LOGDIR,
-        user_tasks=tuple(args.user_tasks),
-        injection_tasks=tuple(args.injection_tasks),
-        model_id=args.model_id,
-        attack=attack,
-        defense=args.defense,
-        tool_delimiter=args.tool_delimiter,
-        system_message_name=args.system_message_name,
-        system_message=args.system_message,
-        max_workers=args.max_workers,
-        force_rerun=args.force_rerun,
-        modules_to_load=tuple(args.modules_to_load),
-    )
+    for module in args.modules_to_load:
+        importlib.import_module(module)
+
+    # Orchestrate via benchmark_suite directly (a stable API across agentdojo versions) rather than a
+    # run_benchmark helper, whose presence/type varies between installs.
+    suites = tuple(args.suite) or tuple(get_suites(args.benchmark_version).keys())
+    if len(suites) != 1 and args.user_tasks:
+        raise SystemExit("A user task (-ut) can be specified only when a single --suite is run.")
+
+    for suite_name in suites:
+        suite = get_suite(args.benchmark_version, suite_name)
+        results = benchmark_suite(
+            suite,
+            args.model,
+            LOGDIR,
+            args.force_rerun,
+            args.benchmark_version,
+            user_tasks=tuple(args.user_tasks),
+            injection_tasks=tuple(args.injection_tasks),
+            model_id=args.model_id,
+            attack=attack,
+            defense=args.defense,
+            tool_delimiter=args.tool_delimiter,
+            system_message_name=args.system_message_name,
+            system_message=args.system_message,
+        )
+        show_results(suite_name, results, attack is not None)
 
 
 if __name__ == "__main__":
