@@ -1,8 +1,6 @@
 # [ICML'25] MELON: Provable Defense Against Indirect Prompt Injection Attacks in AI Agents
 
-This repo bundles [AgentDojo](https://github.com/ethz-spylab/agentdojo) under `agentdojo/` **with MELON already integrated** (the `melon` defense is registered and `pi_detector.py` is in place) — no manual patching needed.
-
-It also bundles the three dynamic task suites from [AgentDyn](https://github.com/SaFo-Lab/AgentDyn) (`shopping`, `github`, `dailylife` — 60 open-ended user tasks and their injection test cases), so the benchmark runs on all seven suites with the same arguments.
+MELON runs on a superset fork of [AgentDojo](https://github.com/ethz-spylab/agentdojo) — [`lindsey98/agentdojo`](https://github.com/lindsey98/agentdojo) — which has the `melon` defense, the three dynamic [AgentDyn](https://github.com/SaFo-Lab/AgentDyn) suites (`shopping`, `github`, `dailylife`), and the [ChatInject](https://github.com/hwanchang00/ChatInject) attacks built in. This repo provides the `main.py` runner and configuration.
 
 ## Install
 
@@ -11,17 +9,13 @@ Python 3.11+ recommended.
 ```bash
 git clone https://github.com/lindsey98/melon && cd melon
 conda create -n melon python=3.11 -y && conda activate melon
-# Installs AgentDojo (incl. the AgentDyn suites) + MELON detection deps
-# (numpy, sentence-transformers) + transformers extra
-cd agentdojo 
-pip install -e ".[transformers,melon]"
-cd ../
+# AgentDojo — the superset fork (MELON + AgentDyn suites + ChatInject):
+pip install "git+https://github.com/lindsey98/agentdojo.git"
+pip install sentence-transformers        # MELON's fully-local embedding backend
 pip install "vllm>=0.6.3"                # optional: serve local agent LLMs
 ```
 
-The AgentDyn suites are part of the bundled `agentdojo` package — no separate AgentDyn install is needed (do **not** `pip install` AgentDyn's own fork on top; it would replace the MELON-integrated `agentdojo`).
-
-The `melon` extra pulls in `sentence-transformers`, so the fully-local embedding backend works out of the box.
+For a local checkout you can hack on instead, clone the fork and `pip install -e /path/to/agentdojo`. The `transformers`-based detectors (e.g. `transformers_pi_detector`) need the extra: `pip install "agentdojo[transformers] @ git+https://github.com/lindsey98/agentdojo.git"`.
 
 ## Configure API keys
 
@@ -60,7 +54,7 @@ The underlying click CLI (`python -m agentdojo.scripts.benchmark`) still works a
 **ChatInject attack** ([ChatInject](https://github.com/hwanchang00/ChatInject)): reconstructs the target model's chat template inside an injected tool output so an attacker-authored system/user/assistant exchange is parsed as real conversation history. Pick the variant matching your served model's template:
 
 - `chat_inject_qwen3`, `chat_inject_glm` — single fake turn; works on any suite.
-- `chat_inject_{qwen3,glm}_with_utility_system_multiturn_7` and the `..._authority_endorsement_...` variants — prepend a pre-generated multi-turn dialogue. Data lives in `agentdojo/src/agentdojo/attacks/chatinject_data/` and **only covers the `banking` / `slack` / `travel` injection GOALs** (matched by exact GOAL string); other suites raise a `ValueError`.
+- `chat_inject_{qwen3,glm}_with_utility_system_multiturn_7` and the `..._authority_endorsement_...` variants — prepend a pre-generated multi-turn dialogue. The data (in the agentdojo package's `attacks/chatinject_data/`) **only covers the `banking` / `slack` / `travel` injection GOALs** (matched by exact GOAL string); other suites (incl. `workspace`) raise a `ValueError`, so run these variants with `--suite banking slack travel`.
 
 ```bash
 python main.py Qwen3-30B-A3B-Instruct-2507 --run-attack \
