@@ -31,6 +31,11 @@ from agentdojo.models import ModelsEnum
 from agentdojo.scripts.benchmark import benchmark_suite, show_results
 from agentdojo.task_suite.load_suites import get_suite, get_suites
 
+# Count EVERY call's tokens (agent + MELON's masked-detection re-runs + any defense node) into each
+# record's prompt_tokens/completion_tokens/total_tokens -- see token_meter.py. MELON logs none otherwise.
+import token_meter
+token_meter.install()
+
 # Output directory is fixed (not a CLI option).
 LOGDIR = Path("logs")
 
